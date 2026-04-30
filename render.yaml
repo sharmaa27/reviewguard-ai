@@ -1,0 +1,65 @@
+services:
+  # ── ML Model (Python Flask API) ──────────────────────────
+  - type: web
+    name: reviewguard-ml
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: ml-model
+    buildCommand: pip install -r requirements.txt && python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords'); nltk.download('wordnet'); nltk.download('punkt_tab')"
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: PYTHON_VERSION
+        value: 3.11.6
+
+  # ── Backend (Node.js Express API) ────────────────────────
+  - type: web
+    name: reviewguard-backend
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false  # Set manually in Render dashboard
+      - key: PYTHON_PATH
+        value: python3
+      - key: ML_SERVICE_URL
+        fromService:
+          name: reviewguard-ml
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  # ── Frontend (React Static Site) ─────────────────────────
+  - type: web
+    name: reviewguard-frontend
+    runtime: static
+    region: oregon
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: REACT_APP_API_URL
+        fromService:
+          name: reviewguard-backend
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: CI
+        value: false
