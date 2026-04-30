@@ -13,7 +13,7 @@ class ReviewPredictor:
             raise FileNotFoundError(f"Model not found. Run train_model.py first.")
         self.model = joblib.load(model_path)
         self.vectorizer = joblib.load(os.path.join(self.model_dir, 'vectorizer.joblib'))
-        self.preprocessor = joblib.load(os.path.join(self.model_dir, 'preprocessor.joblib')) if os.path.exists(os.path.join(self.model_dir, 'preprocessor.joblib')) else None
+        self.preprocessor = None  # Use built-in preprocessing
 
     def _preprocess(self, text):
         if self.preprocessor: return self.preprocessor.clean(text)
