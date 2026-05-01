@@ -1,8 +1,3 @@
-/**
- * ML Classifier Service Client
- * Calls the Python Flask ML service via HTTP instead of spawning a local process.
- */
-
 class Classifier {
     constructor() {
         this.mlServiceUrl = process.env.ML_SERVICE_URL || 'http://localhost:5002';

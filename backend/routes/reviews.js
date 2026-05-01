@@ -3,9 +3,9 @@ const router = express.Router();
 const Review = require('../models/Review');
 const Product = require('../models/Product');
 const classifier = require('../services/classifier');
+const qualityAnalyzer = require('../services/qualityAnalyzer');
 const { auth } = require('../middleware/auth');
 
-// Submit review - requires login + ML checks authenticity
 router.post('/', auth, async (req, res) => {
     try {
         const { text, rating, productId } = req.body;
@@ -20,38 +20,63 @@ router.post('/', auth, async (req, res) => {
         const product = await Product.findById(productId);
         if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
 
-        // 🤖 ML Classification
-        console.log('🔍 Classifying review...');
-        const ml = await classifier.classify(text.trim());
-        console.log('📊 Result:', ml);
+        const cleanText = text.trim();
+
+        console.log('📋 Running quality analysis...');
+        const qualityResult = qualityAnalyzer.analyzeQuality(cleanText);
+        console.log('📋 Quality:', JSON.stringify(qualityResult));
+
+        console.log('🤖 Running ML classification...');
+        const mlResult = await classifier.classify(cleanText);
+        console.log('🤖 ML:', JSON.stringify(mlResult));
+
+        const verdict = qualityAnalyzer.combinedVerdict(mlResult, qualityResult);
+        console.log('⚖️ Verdict:', JSON.stringify(verdict));
 
         const review = new Review({
-            text: text.trim(),
+            text: cleanText,
             rating: parseInt(rating),
             product: productId,
             reviewerName: req.user.name,
             user: req.user._id,
-            classification: { prediction: ml.prediction, confidence: ml.confidence, isAuthentic: ml.is_authentic },
-            isVisible: ml.is_authentic
+            classification: {
+                prediction: verdict.prediction,
+                confidence: verdict.confidence,
+                isAuthentic: verdict.isAuthentic
+            },
+            isVisible: verdict.isAuthentic
         });
 
         await review.save();
 
-        if (ml.is_authentic) {
+        if (verdict.isAuthentic) {
             res.status(201).json({
                 success: true,
                 isAuthentic: true,
                 message: '✓ Your review has been published!',
                 review: { id: review._id, text: review.text, rating: review.rating, reviewerName: review.reviewerName, createdAt: review.createdAt },
-                confidence: Math.round(ml.confidence * 100)
+                confidence: Math.round(verdict.confidence * 100),
+                analysis: verdict.layers
             });
         } else {
+            let tip = 'Write a detailed review based on your actual experience';
+            if (qualityResult.issues.length > 0) {
+                const issue = qualityResult.issues[0];
+                if (issue.includes('short')) tip = 'Write a longer, more detailed review describing your experience';
+                else if (issue.includes('repetitive')) tip = 'Avoid repeating the same words — describe specific features';
+                else if (issue.includes('spam')) tip = 'Use natural language instead of promotional phrases';
+                else if (issue.includes('No specific')) tip = 'Mention specific product features, how you used it, or compare it to alternatives';
+                else if (issue.includes('opinion')) tip = 'Add specific details about what you liked or disliked and why';
+            }
+
             res.json({
                 success: false,
                 isAuthentic: false,
                 message: '✗ Review rejected - detected as potentially fake or spam',
-                confidence: Math.round(ml.confidence * 100),
-                tip: 'Write a genuine review based on your actual experience'
+                confidence: Math.round(verdict.confidence * 100),
+                tip,
+                reason: verdict.reason,
+                analysis: verdict.layers
             });
         }
     } catch (err) {
@@ -60,7 +85,6 @@ router.post('/', auth, async (req, res) => {
     }
 });
 
-// Get reviews for product
 router.get('/product/:productId', async (req, res) => {
     try {
         const reviews = await Review.find({ product: req.params.productId, isVisible: true }).sort({ createdAt: -1 });
@@ -70,20 +94,21 @@ router.get('/product/:productId', async (req, res) => {
     }
 });
 
-// Analyze without saving (requires login)
 router.post('/analyze', auth, async (req, res) => {
     try {
         const { text } = req.body;
         if (!text || text.length < 5) return res.status(400).json({ success: false, error: 'Text required' });
         
-        const result = await classifier.classify(text);
-        res.json({ success: true, ...result, confidence: Math.round(result.confidence * 100) });
+        const qualityResult = qualityAnalyzer.analyzeQuality(text);
+        const mlResult = await classifier.classify(text);
+        const verdict = qualityAnalyzer.combinedVerdict(mlResult, qualityResult);
+
+        res.json({ success: true, ...verdict, confidence: Math.round(verdict.confidence * 100) });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// Stats
 router.get('/stats', async (req, res) => {
     try {
         const [total, genuine, fake] = await Promise.all([
