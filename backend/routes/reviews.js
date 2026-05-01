@@ -3,11 +3,12 @@ const router = express.Router();
 const Review = require('../models/Review');
 const Product = require('../models/Product');
 const classifier = require('../services/classifier');
+const { auth } = require('../middleware/auth');
 
-// Submit review - ML checks authenticity
-router.post('/', async (req, res) => {
+// Submit review - requires login + ML checks authenticity
+router.post('/', auth, async (req, res) => {
     try {
-        const { text, rating, productId, reviewerName } = req.body;
+        const { text, rating, productId } = req.body;
 
         if (!text || text.trim().length < 10) {
             return res.status(400).json({ success: false, error: 'Review must be at least 10 characters' });
@@ -28,7 +29,8 @@ router.post('/', async (req, res) => {
             text: text.trim(),
             rating: parseInt(rating),
             product: productId,
-            reviewerName: reviewerName?.trim() || 'Anonymous',
+            reviewerName: req.user.name,
+            user: req.user._id,
             classification: { prediction: ml.prediction, confidence: ml.confidence, isAuthentic: ml.is_authentic },
             isVisible: ml.is_authentic
         });
@@ -68,8 +70,8 @@ router.get('/product/:productId', async (req, res) => {
     }
 });
 
-// Analyze without saving
-router.post('/analyze', async (req, res) => {
+// Analyze without saving (requires login)
+router.post('/analyze', auth, async (req, res) => {
     try {
         const { text } = req.body;
         if (!text || text.length < 5) return res.status(400).json({ success: false, error: 'Text required' });

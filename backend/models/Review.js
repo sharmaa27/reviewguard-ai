@@ -5,6 +5,7 @@ const reviewSchema = new mongoose.Schema({
     rating: { type: Number, required: true, min: 1, max: 5 },
     product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
     reviewerName: { type: String, default: 'Anonymous' },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     classification: {
         prediction: { type: String, enum: ['Genuine', 'Fake'] },
         confidence: { type: Number },

@@ -1,8 +1,17 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { Shield, Sparkles } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Shield, Sparkles, LogIn, LogOut, User } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const Header = ({ stats }) => {
+    const { user, isAuthenticated, logout } = useAuth();
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        logout();
+        navigate('/');
+    };
+
     return (
         <header className="header">
             <div className="container header-content">
@@ -16,22 +25,39 @@ const Header = ({ stats }) => {
                     </span>
                 </Link>
                 
-                {stats && (
-                    <div className="nav-stats">
-                        <div className="stat-item">
-                            <div className="stat-value">{stats.total || 0}</div>
-                            <div className="stat-label">Reviews</div>
+                <div className="header-right">
+                    {stats && (
+                        <div className="nav-stats">
+                            <div className="stat-item">
+                                <div className="stat-value">{stats.total || 0}</div>
+                                <div className="stat-label">Reviews</div>
+                            </div>
+                            <div className="stat-item genuine">
+                                <div className="stat-value">{stats.genuine || 0}</div>
+                                <div className="stat-label">Genuine</div>
+                            </div>
+                            <div className="stat-item fake">
+                                <div className="stat-value">{stats.fake || 0}</div>
+                                <div className="stat-label">Blocked</div>
+                            </div>
                         </div>
-                        <div className="stat-item genuine">
-                            <div className="stat-value">{stats.genuine || 0}</div>
-                            <div className="stat-label">Genuine</div>
+                    )}
+
+                    {isAuthenticated ? (
+                        <div className="user-menu">
+                            <span className="user-name">
+                                <User size={16} /> {user.name}
+                            </span>
+                            <button className="logout-btn" onClick={handleLogout}>
+                                <LogOut size={16} /> Logout
+                            </button>
                         </div>
-                        <div className="stat-item fake">
-                            <div className="stat-value">{stats.fake || 0}</div>
-                            <div className="stat-label">Blocked</div>
-                        </div>
-                    </div>
-                )}
+                    ) : (
+                        <Link to="/auth" className="login-btn">
+                            <LogIn size={16} /> Login
+                        </Link>
+                    )}
+                </div>
             </div>
         </header>
     );

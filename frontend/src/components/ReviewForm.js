@@ -1,14 +1,37 @@
 import React, { useState } from 'react';
-import { Send, Star, Loader2, Shield, AlertTriangle, CheckCircle2, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Send, Star, Loader2, Shield, AlertTriangle, CheckCircle2, Sparkles, LogIn } from 'lucide-react';
 import { reviewAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const ReviewForm = ({ productId, onReviewSubmitted }) => {
+    const { isAuthenticated, user } = useAuth();
+    const navigate = useNavigate();
     const [text, setText] = useState('');
     const [rating, setRating] = useState(0);
     const [hoverRating, setHoverRating] = useState(0);
-    const [name, setName] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
+
+    if (!isAuthenticated) {
+        return (
+            <div className="review-form-container">
+                <div className="form-header">
+                    <Shield className="form-icon" size={24} />
+                    <div>
+                        <h3>Write a Review</h3>
+                        <p>Login required to submit reviews</p>
+                    </div>
+                </div>
+                <div className="login-prompt">
+                    <p>You need to be logged in to write a review.</p>
+                    <button className="submit-btn" onClick={() => navigate('/auth')}>
+                        <LogIn size={18} /> Sign In to Review
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -21,19 +44,21 @@ const ReviewForm = ({ productId, onReviewSubmitted }) => {
             const res = await reviewAPI.submit({ 
                 text, 
                 rating, 
-                productId, 
-                reviewerName: name || 'Anonymous' 
+                productId
             });
             setResult(res.data);
             
             if (res.data.isAuthentic) {
                 setText('');
                 setRating(0);
-                setName('');
                 if (onReviewSubmitted) onReviewSubmitted();
             }
         } catch (err) {
-            setResult({ success: false, message: 'Failed to submit review' });
+            if (err.response?.status === 401) {
+                setResult({ success: false, message: 'Session expired. Please login again.' });
+            } else {
+                setResult({ success: false, message: 'Failed to submit review' });
+            }
         } finally {
             setLoading(false);
         }
@@ -45,7 +70,7 @@ const ReviewForm = ({ productId, onReviewSubmitted }) => {
                 <Shield className="form-icon" size={24} />
                 <div>
                     <h3>Write a Review</h3>
-                    <p>Your review will be analyzed by AI</p>
+                    <p>Reviewing as <strong>{user.name}</strong></p>
                 </div>
             </div>
 
@@ -75,17 +100,6 @@ const ReviewForm = ({ productId, onReviewSubmitted }) => {
                             </span>
                         )}
                     </div>
-                </div>
-
-                <div className="form-group">
-                    <label>Name (optional)</label>
-                    <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Anonymous"
-                        className="form-input"
-                    />
                 </div>
 
                 <div className="form-group">
